@@ -1,0 +1,54 @@
+# HumanFollower CMake config file
+#
+# This file sets the following variables:
+# HumanFollower_FOUND - Always TRUE.
+# HumanFollower_INCLUDE_DIRS - Directories containing the HumanFollower include files.
+# HumanFollower_IDL_DIRS - Directories containing the HumanFollower IDL files.
+# HumanFollower_LIBRARIES - Libraries needed to use HumanFollower.
+# HumanFollower_DEFINITIONS - Compiler flags for HumanFollower.
+# HumanFollower_VERSION - The version of HumanFollower found.
+# HumanFollower_VERSION_MAJOR - The major version of HumanFollower found.
+# HumanFollower_VERSION_MINOR - The minor version of HumanFollower found.
+# HumanFollower_VERSION_REVISION - The revision version of HumanFollower found.
+# HumanFollower_VERSION_CANDIDATE - The candidate version of HumanFollower found.
+
+message(STATUS "Found HumanFollower-@PROJECT_VERSION@")
+set(HumanFollower_FOUND TRUE)
+
+find_package(<dependency> REQUIRED)
+
+#set(HumanFollower_INCLUDE_DIRS
+#    "@CMAKE_INSTALL_PREFIX@/include/@PROJECT_NAME_LOWER@-@PROJECT_VERSION_MAJOR@"
+#    ${<dependency>_INCLUDE_DIRS}
+#    )
+#
+#set(HumanFollower_IDL_DIRS
+#    "@CMAKE_INSTALL_PREFIX@/include/@PROJECT_NAME_LOWER@-@PROJECT_VERSION_MAJOR@/idl")
+set(HumanFollower_INCLUDE_DIRS
+    "@CMAKE_INSTALL_PREFIX@/include/@CPACK_PACKAGE_FILE_NAME@"
+    ${<dependency>_INCLUDE_DIRS}
+    )
+set(HumanFollower_IDL_DIRS
+    "@CMAKE_INSTALL_PREFIX@/include/@CPACK_PACKAGE_FILE_NAME@/idl")
+
+
+if(WIN32)
+    set(HumanFollower_LIBRARIES
+        "@CMAKE_INSTALL_PREFIX@/@LIB_INSTALL_DIR@/@CMAKE_SHARED_LIBRARY_PREFIX@@PROJECT_NAME_LOWER@@CMAKE_STATIC_LIBRARY_SUFFIX@"
+        ${<dependency>_LIBRARIES}
+        )
+else(WIN32)
+    set(HumanFollower_LIBRARIES
+        "@CMAKE_INSTALL_PREFIX@/@LIB_INSTALL_DIR@/@CMAKE_SHARED_LIBRARY_PREFIX@@PROJECT_NAME_LOWER@@CMAKE_SHARED_LIBRARY_SUFFIX@"
+        ${<dependency>_LIBRARIES}
+        )
+endif(WIN32)
+
+set(HumanFollower_DEFINITIONS ${<dependency>_DEFINITIONS})
+
+set(HumanFollower_VERSION @PROJECT_VERSION@)
+set(HumanFollower_VERSION_MAJOR @PROJECT_VERSION_MAJOR@)
+set(HumanFollower_VERSION_MINOR @PROJECT_VERSION_MINOR@)
+set(HumanFollower_VERSION_REVISION @PROJECT_VERSION_REVISION@)
+set(HumanFollower_VERSION_CANDIDATE @PROJECT_VERSION_CANDIDATE@)
+
