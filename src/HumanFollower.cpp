@@ -267,8 +267,8 @@ RTC::ReturnCode_t HumanFollower::onExecute(RTC::UniqueId ec_id)
 {
   if (m_rangeIn.isNew()) {
     m_rangeIn.read();
-    std::cout << "Range Data Received. (length=" << m_range.ranges.length() << ")" << std::endl;    
-    double maxDetection = 2.0;
+    //std::cout << "Range Data Received. (length=" << m_range.ranges.length() << ")" << std::endl;    
+    double maxDetection = 3.5;
 
 #ifdef CV_SHOW
     uint32_t bufferImageCount = imageCount == 1 ? 0 : 1;
@@ -312,7 +312,8 @@ RTC::ReturnCode_t HumanFollower::onExecute(RTC::UniqueId ec_id)
 #endif
     }
   
-    std::cout << "Objects = " << objects.size() << std::endl;
+    /// 物体の発見数
+    // std::cout << "Objects = " << objects.size() << std::endl;
     legs.clear();
     humans.clear();
     for (auto o: objects) {
@@ -331,70 +332,93 @@ RTC::ReturnCode_t HumanFollower::onExecute(RTC::UniqueId ec_id)
       }	
     }
 
+    /// ここで足を検出
     //std::cout << "Legs = " << legs.size() << std::endl;
-    for (auto leg : legs) {
-      auto c = center(leg);
-    }
+    //for (auto leg : legs) {
+    //  auto c = center(leg);
+    //}
 
     if (legs.size() == 1) {
       humans.push_back(Human(legs[0]));
     }
 
     for (int i = 1;i < legs.size();i++) {
-      double max_distance_legs = 1.0;
+      double max_distance_legs = 0.5;
       if (distance(center(legs[i-1]), center(legs[i])) < max_distance_legs) {
 	auto h = Human(legs[i-1], legs[i]);
 
 	humans.push_back(h);
       } else {
-	humans.push_back(Human(legs[i-1]));
+	///humans.push_back(Human(legs[i-1]));
       }
     }
 
+    /// ここで初めて人間の場所が特定されたのでセレクトをする
+    std::cout << "Humans = " << humans.size() << std::endl;
+    double maximumHumanTravel = 0.5;
+    int updated = 0;
     Human nextTrackingHuman = trackingHuman;
-    if (humans.size() > 0 && !initialized) {
+    if (humans.size() > 0 && !initialized) { /// 最初のトラッキングの場合
+      double maxY = 10000;
       for(auto h : humans) {
-	if (fabs(h.point.y) < fabs(trackingHuman.point.y)) {
+	std::cout << "H:" << h.point.x << "," << h.point.y << std::endl;
+	if (fabs(h.point.y) < maxY) {
+	  maxY = fabs(h.point.y);
 	  trackingHuman = h;
 	  nextTrackingHuman = h;
+	  updated ++;
 	}
       }
       initialized = true;
     } else if (humans.size() > 0) {
-      double max_distance = 10000;
+      double max_distance = maximumHumanTravel;
       for(auto h : humans) {
 	double d = distance(h.point, trackingHuman.point);
+	std::cout << "(" << d << "),";
 	if (d < max_distance) {
 	  max_distance = d;
 	  nextTrackingHuman = h;
+	  updated++;
 	}
       }
+      std::cout << std::endl;
     }
 
+
+    if (updated == 0) {// トラッキング先の人間が見つからない
+      std::cout << "Not Found" << std::endl;
+    }
     
     double maxDistanceHumanWalk = 0.5;
     //    if (distance(trackingHuman.point, nextTrackingHuman.point) < maxDistanceHumanWalk) {
       trackingHuman = nextTrackingHuman;
       //    }
 
-    std::cout << "Humans = " << humans.size() << std::endl;
+
     
 #ifdef CV_SHOW
     for(auto leg: legs) {
-      cvCircle(image, toCvPoint(center(leg)), width(leg) /2 / meter_by_pixel, colors[legs.size() % MAX_OBJECTS], -1);
+      // cvCircle(image, toCvPoint(center(leg)), width(leg) /2 / meter_by_pixel, colors[legs.size() % MAX_OBJECTS], -1);
     }
     for(auto h : humans) {
       cvCircle(image, toCvPoint(h.point), h.radius / meter_by_pixel, colors[humans.size() % MAX_OBJECTS]);
     }
+    
 
     if (initialized && objects.size() > 0) {
+      const int L = 50;
       CvPoint hp = toCvPoint(trackingHuman.point);
-      cvLine(image, cvPoint(hp.x, 0), cvPoint(hp.x, HEIGHT), CV_RGB(0, 0, 255), 1, 4, 0);
-      cvLine(image, cvPoint(0, hp.y), cvPoint(WIDTH, hp.y), CV_RGB(0, 0, 255), 1, 4, 0);
+      cvLine(image, cvPoint(hp.x, hp.y+L), cvPoint(hp.x, hp.y-L), CV_RGB(255, 255, 255), 1, 4, 0);
+      cvLine(image, cvPoint(hp.x+L, hp.y), cvPoint(hp.x-L, hp.y), CV_RGB(255, 255, 255), 1, 4, 0);
+      cvLine(image, cvPoint(hp.x, hp.y), cvPoint(WIDTH/2, HEIGHT/2), CV_RGB(255, 255, 255), 1, 4, 0);
     }
-
-    cvLine(image, cvPoint(WIDTH / 2, 0), cvPoint(WIDTH / 2, HEIGHT), CV_RGB(255, 0, 0), 1, 4, 0);
-    cvLine(image, cvPoint(0, HEIGHT / 2), cvPoint(WIDTH, HEIGHT / 2), CV_RGB(255, 0, 0), 1, 4, 0);
+    // 軸を書く
+    cvLine(image, cvPoint(WIDTH / 2, 0), cvPoint(WIDTH / 2, HEIGHT), CV_RGB(255, 255, 255), 1, 4, 0);
+    cvLine(image, cvPoint(0, HEIGHT / 2), cvPoint(WIDTH, HEIGHT / 2), CV_RGB(255, 255, 255), 1, 4, 0);
+    // レーダーサークルを書く
+    cvCircle(image, cvPoint(WIDTH/2, HEIGHT/2), 1.0 / meter_by_pixel, CV_RGB(255, 255, 255)); 
+    cvCircle(image, cvPoint(WIDTH/2, HEIGHT/2), 2.0 / meter_by_pixel, CV_RGB(255, 255, 255)); 
+    cvCircle(image, cvPoint(WIDTH/2, HEIGHT/2), 3.0 / meter_by_pixel, CV_RGB(255, 255, 255)); 
     imageCount = bufferImageCount;
 #endif
     // human Tracked.
@@ -409,7 +433,7 @@ RTC::ReturnCode_t HumanFollower::onExecute(RTC::UniqueId ec_id)
 
       double distance = sqrt(dx * dx + dy * dy) - offset;
       double angle = atan2(dy, dx);
-      std::cout << "dth = " << angle << std::endl;
+      // std::cout << "dth = " << angle << std::endl;
       double vx = distance > 0 ? distance * distance * dx_gain : 0;
       double vy = 0;
       double va = angle * da_gain;
