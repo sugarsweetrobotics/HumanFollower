@@ -12,6 +12,7 @@
  * $Id$
  */
 
+#include <stdint.h>
 #include "HumanFollower.h"
 
 // Module specification
@@ -154,13 +155,28 @@ CvScalar colors[MAX_OBJECTS] = {
 
 RTC::ReturnCode_t HumanFollower::onActivated(RTC::UniqueId ec_id)
 {
+#ifdef WIN32
+	cv::namedWindow("HumanFollower", CV_WINDOW_AUTOSIZE);
+#else 
+#ifdef Linux
+	cv::namedWindow("HumanFollower", CV_WINDOW_AUTOSIZE);
+#endif
+
+#endif
   return RTC::RTC_OK;
 }
 
 
 RTC::ReturnCode_t HumanFollower::onDeactivated(RTC::UniqueId ec_id)
 {
-  return RTC::RTC_OK;
+#ifdef WIN32
+	cv::destroyWindow("HumanFollower");
+#else
+#ifdef Linux
+	cv::destroyWindow("HumanFollower");
+#endif
+#endif
+	return RTC::RTC_OK;
 }
 
 
@@ -420,6 +436,23 @@ RTC::ReturnCode_t HumanFollower::onExecute(RTC::UniqueId ec_id)
     cvCircle(image, cvPoint(WIDTH/2, HEIGHT/2), 2.0 / meter_by_pixel, CV_RGB(255, 255, 255)); 
     cvCircle(image, cvPoint(WIDTH/2, HEIGHT/2), 3.0 / meter_by_pixel, CV_RGB(255, 255, 255)); 
     imageCount = bufferImageCount;
+
+
+#ifdef WIN32
+
+	cvShowImage("HumanFollower", pImages[imageCount]);
+	//coil::usleep(100*1000);
+	///std::cout << "update[" << imageCount << "]" << std::endl;
+	cv::waitKey(10);
+#else
+#ifdef Linux
+
+	cvShowImage("HumanFollower", pImages[imageCount]);
+	//coil::usleep(100*1000);
+	///std::cout << "update[" << imageCount << "]" << std::endl;
+	cv::waitKey(10);
+#endif
+#endif
 #endif
     // human Tracked.
     if (humans.size() > 0) {

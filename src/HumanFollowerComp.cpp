@@ -16,6 +16,7 @@
 #include <iostream>
 #include <string>
 #include <stdlib.h>
+#include <stdint.h>
 #include "HumanFollower.h"
 
 extern IplImage *pImages[2];
@@ -101,13 +102,18 @@ int main (int argc, char** argv)
 
   // run the manager in blocking mode
   // runManager(false) is the default.
+#ifdef WIN32
+  manager->runManager(false);
+#else WIN32
+#ifdef Linux
+  manager->runManager(false);
+#else
   manager->runManager(true);
 
   // If you want to run the manager in non-blocking mode, do like this
   // manager->runManager(true);
 
   cv::namedWindow("HumanFollower", CV_WINDOW_AUTOSIZE);
-
 
   while(!endFlag) {
     //cv::imshow("HumanFollower", *pImages[imageCount]);
@@ -118,6 +124,7 @@ int main (int argc, char** argv)
   }
 
   cv::destroyWindow("HumanFollower");
-
+#endif
+#endif
   return 0;
 }
