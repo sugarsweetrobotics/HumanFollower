@@ -274,6 +274,9 @@ static std::vector<Object> objects;
 static std::vector<Object> legs;
 static std::vector<Human> humans;
 
+static std::vector<Human> trackingHumanHistory;
+static int history_size = 20;
+
 static bool initialized = false;
 static Human trackingHuman(Object(Point(-10000, -10000)));
 
@@ -285,7 +288,9 @@ RTC::ReturnCode_t HumanFollower::onExecute(RTC::UniqueId ec_id)
     m_rangeIn.read();
     //std::cout << "Range Data Received. (length=" << m_range.ranges.length() << ")" << std::endl;    
     double maxDetection = 3.5;
-
+    
+    double minDetectionAngle = -1;
+    double maxDetectionAngle = 1;
 #ifdef CV_SHOW
     uint32_t bufferImageCount = imageCount == 1 ? 0 : 1;
     IplImage* image = pImages[bufferImageCount];
@@ -294,12 +299,16 @@ RTC::ReturnCode_t HumanFollower::onExecute(RTC::UniqueId ec_id)
 
     objects.clear();
     for (int i = 0; i < m_range.ranges.length(); i+=1) {
-      Point p = range_to_point(m_range.ranges[i], m_range.config.minAngle + i * m_range.config.angularRes);
-      
+      double angle = m_range.config.minAngle + i * m_range.config.angularRes;
+      if (angle < minDetectionAngle || angle > maxDetectionAngle) {
+	continue;
+      }
+
+      Point p = range_to_point(m_range.ranges[i], angle);
       bool findObject = m_range.ranges[i] < maxDetection;
       bool newObject = true;
       if (i != 0) {
-	for(int j = 1;j <= 1;j++) {
+	for(int j = 1;j <= 3;j++) {
 	  if (i - j > 0) {
 	    if (fabs(m_range.ranges[i-j] - m_range.ranges[i]) < 0.05*j) {
 	      newObject = false;
@@ -329,7 +338,7 @@ RTC::ReturnCode_t HumanFollower::onExecute(RTC::UniqueId ec_id)
     }
   
     /// 物体の発見数
-    // std::cout << "Objects = " << objects.size() << std::endl;
+    std::cout << "Objects = " << objects.size() << std::endl;
     legs.clear();
     humans.clear();
     for (auto o: objects) {
@@ -358,20 +367,27 @@ RTC::ReturnCode_t HumanFollower::onExecute(RTC::UniqueId ec_id)
       humans.push_back(Human(legs[0]));
     }
 
-    for (int i = 1;i < legs.size();i++) {
-      double max_distance_legs = 0.5;
-      if (distance(center(legs[i-1]), center(legs[i])) < max_distance_legs) {
-	auto h = Human(legs[i-1], legs[i]);
+    double max_distance_legs = 0.5;
+    for (int i = 0;i < legs.size();i++) {
+      bool foundPair = false;
+      for (int j = 0;j < legs.size();j++) {
+	if (i != j) {
+	  if (distance(center(legs[i]), center(legs[j])) < max_distance_legs) {
+	    auto h = Human(legs[i], legs[j]);
+	    humans.push_back(h);
+	    foundPair = true;
+	  }
+	}
+      }
 
-	humans.push_back(h);
-      } else {
-	///humans.push_back(Human(legs[i-1]));
+      if (!foundPair) {
+	humans.push_back(Human(legs[i-1]));
       }
     }
 
     /// ここで初めて人間の場所が特定されたのでセレクトをする
     std::cout << "Humans = " << humans.size() << std::endl;
-    double maximumHumanTravel = 0.5;
+    double maximumHumanTravel = 0.4;
     int updated = 0;
     Human nextTrackingHuman = trackingHuman;
     if (humans.size() > 0 && !initialized) { /// 最初のトラッキングの場合
@@ -410,7 +426,10 @@ RTC::ReturnCode_t HumanFollower::onExecute(RTC::UniqueId ec_id)
       trackingHuman = nextTrackingHuman;
       //    }
 
-
+      trackingHumanHistory.push_back(trackingHuman);
+      if (trackingHumanHistory.size() > history_size) {
+	trackingHumanHistory.erase(trackingHumanHistory.begin());
+      }
     
 #ifdef CV_SHOW
     for(auto leg: legs) {
@@ -427,6 +446,14 @@ RTC::ReturnCode_t HumanFollower::onExecute(RTC::UniqueId ec_id)
       cvLine(image, cvPoint(hp.x, hp.y+L), cvPoint(hp.x, hp.y-L), CV_RGB(255, 255, 255), 1, 4, 0);
       cvLine(image, cvPoint(hp.x+L, hp.y), cvPoint(hp.x-L, hp.y), CV_RGB(255, 255, 255), 1, 4, 0);
       cvLine(image, cvPoint(hp.x, hp.y), cvPoint(WIDTH/2, HEIGHT/2), CV_RGB(255, 255, 255), 1, 4, 0);
+
+      Human buf = trackingHumanHistory[0];
+      for(int i = 1;i < trackingHumanHistory.size();i++) {
+	CvPoint p1 = toCvPoint(buf.point);
+	CvPoint p2 = toCvPoint(trackingHumanHistory[i].point);
+	cvLine(image, cvPoint(p1.x, p1.y), cvPoint(p2.x, p2.y), CV_RGB(255, 255, 255), 1, 4, 0);	
+	buf = trackingHumanHistory[i];
+      }
     }
     // 軸を書く
     cvLine(image, cvPoint(WIDTH / 2, 0), cvPoint(WIDTH / 2, HEIGHT), CV_RGB(255, 255, 255), 1, 4, 0);
