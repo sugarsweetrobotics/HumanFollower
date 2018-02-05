@@ -285,7 +285,7 @@ RTC::ReturnCode_t HumanFollower::onExecute(RTC::UniqueId ec_id)
     for (int i = 0; i < m_range.ranges.length(); i+=1) {
       double angle = m_range.config.minAngle + i * m_range.config.angularRes;
       if (angle < minDetectionAngle || angle > maxDetectionAngle) {
-	continue;
+	//continue;
       }
 
       Point p = range_to_point(m_range.ranges[i], angle);
@@ -365,7 +365,7 @@ RTC::ReturnCode_t HumanFollower::onExecute(RTC::UniqueId ec_id)
       }
 
       if (!foundPair) {
-	humans.push_back(Human(legs[i-1]));
+	humans.push_back(Human(legs[i]));
       }
     }
 
