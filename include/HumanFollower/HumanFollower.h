@@ -265,6 +265,10 @@ class HumanFollower
    */
   float m_va_gain;
 
+  float m_offset_human;
+
+  float m_forget_time;
+
   // </rtc-template>
 
   // DataInPort declaration

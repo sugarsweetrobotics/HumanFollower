@@ -34,6 +34,8 @@ static const char* humanfollower_spec[] =
     "conf.default.debug", "0",
     "conf.default.vx_gain", "1.0",
     "conf.default.va_gain", "1.0",
+	"conf.default.offset_human", "0.5",
+	"conf.default.forget_time", "1.0",
     // Widget
     "conf.__widget__.debug", "text",
     "conf.__widget__.vx_gain", "text",
@@ -98,6 +100,9 @@ RTC::ReturnCode_t HumanFollower::onInitialize()
   bindParameter("debug", m_debug, "0");
   bindParameter("vx_gain", m_vx_gain, "1.0");
   bindParameter("va_gain", m_va_gain, "1.0");
+
+  bindParameter("offset_human", m_offset_human, "0.5");
+  bindParameter("forget_time", m_forget_time, "1.0");
   // </rtc-template>
   
 
@@ -152,33 +157,6 @@ CvScalar colors[MAX_OBJECTS] = {
   CV_RGB(125, 255, 125),
   CV_RGB(125, 125, 255),
 };
-
-RTC::ReturnCode_t HumanFollower::onActivated(RTC::UniqueId ec_id)
-{
-#ifdef WIN32
-	cv::namedWindow("HumanFollower", CV_WINDOW_AUTOSIZE);
-#else 
-#ifdef Linux
-	cv::namedWindow("HumanFollower", CV_WINDOW_AUTOSIZE);
-#endif
-
-#endif
-  return RTC::RTC_OK;
-}
-
-
-RTC::ReturnCode_t HumanFollower::onDeactivated(RTC::UniqueId ec_id)
-{
-#ifdef WIN32
-	cv::destroyWindow("HumanFollower");
-#else
-#ifdef Linux
-	cv::destroyWindow("HumanFollower");
-#endif
-#endif
-	return RTC::RTC_OK;
-}
-
 
 struct Point {
   double x;
@@ -270,6 +248,10 @@ struct Human {
     leg1 = (human.leg1), leg2 = (human.leg2), point = (human.point), radius = (human.radius); }
 };
 
+static bool _not_found = false;
+static coil::TimeValue _not_found_start_time;
+static double _stop_not_found_time = 1.0;
+
 static std::vector<Object> objects;
 static std::vector<Object> legs;
 static std::vector<Human> humans;
@@ -282,6 +264,45 @@ static Human trackingHuman(Object(Point(-10000, -10000)));
 
 #define CV_SHOW
 
+
+RTC::ReturnCode_t HumanFollower::onActivated(RTC::UniqueId ec_id)
+{
+#ifdef WIN32
+	cv::namedWindow("HumanFollower", CV_WINDOW_AUTOSIZE);
+#else 
+#ifdef Linux
+	cv::namedWindow("HumanFollower", CV_WINDOW_AUTOSIZE);
+#endif
+
+#endif
+
+	trackingHumanHistory.clear();
+	initialized = false;
+	trackingHuman = Human(Object(Point(-10000, -10000)));
+	return RTC::RTC_OK;
+}
+
+
+RTC::ReturnCode_t HumanFollower::onDeactivated(RTC::UniqueId ec_id)
+{
+#ifdef WIN32
+	cv::destroyWindow("HumanFollower");
+#else
+#ifdef Linux
+	cv::destroyWindow("HumanFollower");
+#endif
+#endif
+	m_velocity.data.vx = m_velocity.data.vy = m_velocity.data.va = 0;
+	setTimestamp(m_velocity);
+	m_velocityOut.write();
+	coil::usleep(1 * 1000 * 1000);
+	setTimestamp(m_velocity);
+	m_velocityOut.write();
+	return RTC::RTC_OK;
+}
+
+
+
 RTC::ReturnCode_t HumanFollower::onExecute(RTC::UniqueId ec_id)
 {
   if (m_rangeIn.isNew()) {
@@ -289,8 +310,8 @@ RTC::ReturnCode_t HumanFollower::onExecute(RTC::UniqueId ec_id)
     //std::cout << "Range Data Received. (length=" << m_range.ranges.length() << ")" << std::endl;    
     double maxDetection = 3.5;
     
-    double minDetectionAngle = -1;
-    double maxDetectionAngle = 1;
+    double minDetectionAngle = -1.57;
+    double maxDetectionAngle = 1.57;
 #ifdef CV_SHOW
     uint32_t bufferImageCount = imageCount == 1 ? 0 : 1;
     IplImage* image = pImages[bufferImageCount];
@@ -301,7 +322,7 @@ RTC::ReturnCode_t HumanFollower::onExecute(RTC::UniqueId ec_id)
     for (int i = 0; i < m_range.ranges.length(); i+=1) {
       double angle = m_range.config.minAngle + i * m_range.config.angularRes;
       if (angle < minDetectionAngle || angle > maxDetectionAngle) {
-	//continue;
+	     continue;
       }
 
       Point p = range_to_point(m_range.ranges[i], angle);
@@ -419,6 +440,19 @@ RTC::ReturnCode_t HumanFollower::onExecute(RTC::UniqueId ec_id)
 
     if (updated == 0) {// トラッキング先の人間が見つからない
       std::cout << "Not Found" << std::endl;
+	  if (!_not_found) {
+		  _not_found = true;
+		  _not_found_start_time = coil::gettimeofday();
+	  }
+
+	  auto current = coil::gettimeofday();
+	  double interval = current - _not_found_start_time;
+	  if (interval >= m_forget_time) {
+
+		  trackingHumanHistory.clear();
+		  initialized = false;
+		  trackingHuman = Human(Object(Point(-10000, -10000)));
+	  }
     }
     
     double maxDistanceHumanWalk = 0.5;
@@ -487,7 +521,7 @@ RTC::ReturnCode_t HumanFollower::onExecute(RTC::UniqueId ec_id)
       double dx = trackingHuman.point.x;
       double dy = trackingHuman.point.y;
 
-      double offset = 1.0;
+      double offset = m_offset_human;
       double dx_gain = 0.5;
       double da_gain = 0.8;
 
