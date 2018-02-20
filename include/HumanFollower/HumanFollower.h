@@ -45,6 +45,102 @@ using namespace RTC;
 #include <opencv2/opencv.hpp>
 #endif
 
+
+/**
+ *
+ */
+struct Point {
+public:
+	double x;
+	double y;
+public:
+	Point(const double x, const double y) : x(x), y(y) {}
+	Point(const Point& p) : x(p.x), y(p.y) {}
+};
+
+/**
+ *
+ */
+inline bool operator==(const Point& p1, const Point& p2) {
+	return p1.x == p2.x && p1.y == p2.y;
+}
+
+/**
+ *
+ */
+struct Object {
+public:
+	std::vector<Point> points;
+
+public:
+	Object() {}
+
+	Object(const Point& p) {
+		points.push_back(p);
+	}
+
+	Object(const Object& o) {
+		points = o.points;
+	}
+};
+
+inline bool operator==(const Object& o1, const Object& o2) {
+	return o1.points == o2.points;
+}
+
+
+
+inline Point average(const Point& p0, const Point& p1) {
+	return Point((p0.x + p1.x) / 2, (p0.y + p1.y) / 2);
+}
+
+inline Point center(const Object& o) {
+	if (o.points.size() < 2) return Point(0, 0);
+	return average(o.points[0], o.points[o.points.size() - 1]);
+}
+
+inline double distance(const Point& p0, const Point& p1) {
+	double dx = p0.x - p1.x;
+	double dy = p0.y - p1.y;
+	return sqrt(dx*dx + dy*dy);
+}
+
+inline double width(const Object& o) {
+	if (o.points.size() == 0) return 0;
+	double dx = (o.points[0].x - o.points[o.points.size() - 1].x);
+	double dy = (o.points[0].y - o.points[o.points.size() - 1].y);
+	return sqrt(dx*dx + dy*dy);
+}
+
+/**
+ *
+ */
+struct Human {
+public:
+	Point point;
+	double radius;
+	Object leg1;
+	Object leg2;
+
+public:
+	Human() : point(0, 0), radius(0) {};
+	Human(const Object&leg1, const Object& leg2) : leg1(leg1), leg2(leg2),
+		point(average(center(leg1), center(leg2))),
+		radius(distance(center(leg1), center(leg2)) / 2) {
+	}
+
+	Human(const Object& leg) : leg1(leg), point(center(leg)), radius(0.30) {
+	}
+
+	Human(const Point& point, const double radius) : leg1(Object(point)), point(point), radius(radius) {}
+
+	Human(const Human& human) : leg1(human.leg1), leg2(human.leg2), point(human.point), radius(human.radius) {}
+
+	void operator=(const Human& human) {
+		leg1 = (human.leg1), leg2 = (human.leg2), point = (human.point), radius = (human.radius);
+	}
+};
+
 /*!
  * @class HumanFollower
  * @brief Human Follow Commander for Mobile Robots
@@ -269,6 +365,29 @@ class HumanFollower
 
   float m_forget_time;
 
+  int m_laser_detect_step;
+
+  float m_max_detect_range;
+
+  float m_min_detect_range;
+
+  float m_max_detect_angle;
+
+  float m_min_detect_angle;
+
+  int m_neibor_laser_index_range;
+
+  int m_neibor_laser_distance_range;
+
+  float m_min_leg_width;
+  float m_max_leg_width;
+
+  float m_min_body_width;
+  float m_max_body_width;
+
+  float m_max_distance_between_legs;
+
+  float m_maxTravelHuman;
   // </rtc-template>
 
   // DataInPort declaration
@@ -313,6 +432,27 @@ class HumanFollower
   // <rtc-template block="private_operation">
   
   // </rtc-template>
+
+
+	 RTC::ReturnCode_t resetFollowing(void);
+	 void detectObjectsFromRange(void);
+
+	 void detectLegsFromObjects(void);
+
+	 void detectHumansFromObjects(void);
+	 void detectHumansFromLegs(void);
+
+	 std::vector<Object> m_detectedObjects;
+	 std::vector<Human> m_trackingHumanHistory;
+
+
+	 std::vector<Object> m_detectedLegs;
+
+	 std::vector<Human> m_detectedHumans;
+
+	 bool findTrackingHuman();
+	 bool findFirstTrackingHuman();
+	 bool findNextTrackingHuman();
 
 };
 
